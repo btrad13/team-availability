@@ -569,18 +569,6 @@ input[type="range"]::-moz-range-thumb {
             Results shown in <span class="inline-note" id="display-tz-abbrev"></span>.
           </div>
         </div>
-        <div class="ctrl">
-          <label class="cap">
-            Minimum riders &nbsp;<span class="thresh-val" id="threshold-val">2 / 2</span>
-          </label>
-          <div class="slider-wrap">
-            <input type="range" id="threshold-slider" min="2" max="2" step="1" value="2">
-          </div>
-          <div class="scale-ticks"><span>2</span><span id="scale-max">ALL (2)</span></div>
-        </div>
-        <div class="ctrl act">
-          <button class="btn primary" id="find-btn" onclick="findOverlaps()">&#9656; Find Overlaps</button>
-        </div>
       </div>
     </div>
 
@@ -596,6 +584,24 @@ input[type="range"]::-moz-range-thumb {
         <button class="btn ghost" onclick="addRiderBlock()">
           <span class="plus">+</span> Add another rider
         </button>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="pnl">
+      <div class="controls">
+        <div class="ctrl">
+          <label class="cap">
+            Minimum riders &nbsp;<span class="thresh-val" id="threshold-val">2 / 2</span>
+          </label>
+          <div class="slider-wrap">
+            <input type="range" id="threshold-slider" min="2" max="2" step="1" value="2">
+          </div>
+          <div class="scale-ticks"><span>2</span><span id="scale-max">ALL (2)</span></div>
+        </div>
+        <div class="ctrl act">
+          <button class="btn primary" id="find-btn" onclick="findOverlaps()">&#9656; Find Overlaps</button>
+        </div>
       </div>
     </div>
 
