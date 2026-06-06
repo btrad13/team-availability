@@ -310,42 +310,6 @@ textarea {
   text-transform: uppercase;
 }
 
-/* ---------- Output block ---------- */
-.output {
-  border: 1px solid var(--accent);
-  background: #0c0e13;
-  position: relative;
-}
-.output .obar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--accent);
-  background: rgba(232,255,71,0.07);
-}
-.output .obar .tag {
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em;
-  color: var(--accent); text-transform: uppercase;
-}
-.output pre {
-  margin: 0; padding: 14px;
-  font-family: var(--mono); font-size: 12px; line-height: 1.55;
-  color: var(--ink); white-space: pre-wrap; word-break: break-word;
-  max-height: 320px; overflow: auto;
-}
-.output pre .pfx { color: var(--accent); }
-.output pre .k { color: var(--blue); }
-.output pre .s { color: var(--green); }
-.output pre .n { color: #ffb454; }
-
-.copy {
-  appearance: none; border: 1px solid var(--accent); background: transparent;
-  color: var(--accent); font-family: var(--cond); font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px;
-  padding: 5px 12px; cursor: pointer; transition: background .12s, color .12s;
-}
-.copy:hover { background: var(--accent); color: #0d0f14; }
-.copy.done { background: var(--green); border-color: var(--green); color: #06281b; }
-
 /* ---------- Share link ---------- */
 .share-bar {
   display: flex; align-items: center; gap: 12px;
@@ -585,14 +549,7 @@ input[type="range"]::-moz-range-thumb {
     </div>
 
     <div class="spacer"></div>
-    <div class="output" id="output-area">
-      <div class="obar">
-        <span class="tag">&#9612; OUTPUT · COPY &amp; SEND TO COORDINATOR</span>
-        <button class="copy" id="copy-btn" onclick="copyBlock()">Copy</button>
-      </div>
-      <pre id="output-pre"></pre>
-    </div>
-    <div class="share-bar">
+    <div class="share-bar" style="border:1px solid var(--line)">
       <div class="share-url placeholder" id="share-url">Add your name and at least one slot to generate a share link</div>
       <button class="btn blue" id="share-btn" onclick="generateShareLink()" disabled>&#9656; Share Link</button>
     </div>
@@ -857,52 +814,8 @@ function renderSlots() {
   }).join('') + '</div>';
 }
 
-function renderOutput() {
-  const area = document.getElementById('output-area');
-  const pre = document.getElementById('output-pre');
-  const name = document.getElementById('rider-name').value.trim() || 'UNNAMED RIDER';
-  const tz = document.getElementById('rider-tz').value;
-  const payload = { v: 1, name: name, tz: tz, slots: slots.map(s => ({ s: s.s, e: s.e })) };
-  const blockText = '-- AVAILABILITY BLOCK --\n' + JSON.stringify(payload, null, 2);
-
-  pre.innerHTML = highlightJson(blockText);
-  area.style.display = '';
-}
-
-function highlightJson(text) {
-  return text.split('\n').map(ln => {
-    if (ln.startsWith('--')) return '<span class="pfx">' + escHtml(ln) + '</span>\n';
-    let result = '';
-    const re = /("(?:[^"\\]|\\.)*")(\s*:)?|(-?\d+\.?\d*)/g;
-    let last = 0, m;
-    while ((m = re.exec(ln)) !== null) {
-      if (m.index > last) result += escHtml(ln.slice(last, m.index));
-      if (m[1] !== undefined) {
-        const cls = m[2] ? 'k' : 's';
-        result += '<span class="' + cls + '">' + escHtml(m[1]) + '</span>';
-        if (m[2]) result += m[2];
-      } else if (m[3] !== undefined) {
-        result += '<span class="n">' + escHtml(m[3]) + '</span>';
-      }
-      last = re.lastIndex;
-    }
-    if (last < ln.length) result += escHtml(ln.slice(last));
-    return result + '\n';
-  }).join('');
-}
-
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function copyBlock() {
-  const pre = document.getElementById('output-pre');
-  const btn = document.getElementById('copy-btn');
-  navigator.clipboard.writeText(pre.textContent).then(() => {
-    btn.textContent = '✓ Copied!';
-    btn.classList.add('done');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1600);
-  });
 }
 
 // --- URL ENCODING / SHARING ---
@@ -969,13 +882,10 @@ function updateShareBtn() {
   }
 }
 
-// Patch renderOutput to also update share button
-const _origRenderOutput = renderOutput;
-renderOutput = function() {
-  _origRenderOutput();
+function renderOutput() {
   updateShareBtn();
   saveToLocalStorage();
-};
+}
 
 // --- LOCAL STORAGE ---
 
