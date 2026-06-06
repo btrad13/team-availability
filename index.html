@@ -346,6 +346,24 @@ textarea {
 .copy:hover { background: var(--accent); color: #0d0f14; }
 .copy.done { background: var(--green); border-color: var(--green); color: #06281b; }
 
+/* ---------- Share link ---------- */
+.share-bar {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--line); border-top: none;
+  background: var(--panel); padding: 12px 14px;
+}
+.share-bar .share-url {
+  flex: 1; font-family: var(--mono); font-size: 11px;
+  color: var(--blue); background: #0c0e13; border: 1px solid var(--line);
+  padding: 8px 10px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0;
+}
+.share-bar .share-url.placeholder { color: var(--muted-2); }
+.btn.blue {
+  background: var(--blue); border-color: var(--blue); color: #06222e;
+}
+.btn.blue:hover { filter: brightness(1.08); }
+
 /* ---------- Controls bar (mode 2) ---------- */
 .controls {
   display: grid;
@@ -573,6 +591,10 @@ input[type="range"]::-moz-range-thumb {
         <button class="copy" id="copy-btn" onclick="copyBlock()">Copy</button>
       </div>
       <pre id="output-pre"></pre>
+    </div>
+    <div class="share-bar">
+      <div class="share-url placeholder" id="share-url">Add your name and at least one slot to generate a share link</div>
+      <button class="btn blue" id="share-btn" onclick="generateShareLink()" disabled>&#9656; Share Link</button>
     </div>
     <div class="mode-footer">
       <button class="btn danger" onclick="resetEnter()">&#10005; Reset All</button>
@@ -883,6 +905,138 @@ function copyBlock() {
   });
 }
 
+// --- URL ENCODING / SHARING ---
+
+function toBase64Url(str) {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(b64) {
+  const padded = b64.replace(/-/g, '+').replace(/_/g, '/');
+  try { return decodeURIComponent(escape(atob(padded))); }
+  catch(e) { return null; }
+}
+
+function encodeAvailability() {
+  const name = document.getElementById('rider-name').value.trim();
+  const tz = document.getElementById('rider-tz').value;
+  if (!name || slots.length === 0) return null;
+  const payload = { v: 1, name, tz, slots: slots.map(s => ({ s: s.s, e: s.e })) };
+  return toBase64Url(JSON.stringify(payload));
+}
+
+function decodeAvailability(encoded) {
+  const json = fromBase64Url(encoded);
+  if (!json) return null;
+  try {
+    const obj = JSON.parse(json);
+    if (!obj.name || !Array.isArray(obj.slots)) return null;
+    return obj;
+  } catch(e) { return null; }
+}
+
+function generateShareLink() {
+  const encoded = encodeAvailability();
+  if (!encoded) return;
+  const url = location.origin + location.pathname + '#d=' + encoded;
+  const urlEl = document.getElementById('share-url');
+  urlEl.textContent = url;
+  urlEl.classList.remove('placeholder');
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('share-btn');
+    btn.textContent = '✓ Copied!';
+    btn.style.background = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+    setTimeout(() => {
+      btn.innerHTML = '&#9656; Share Link';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+    }, 1600);
+  });
+}
+
+function updateShareBtn() {
+  const name = document.getElementById('rider-name').value.trim();
+  const btn = document.getElementById('share-btn');
+  const urlEl = document.getElementById('share-url');
+  if (name && slots.length > 0) {
+    btn.disabled = false;
+  } else {
+    btn.disabled = true;
+    urlEl.textContent = 'Add your name and at least one slot to generate a share link';
+    urlEl.classList.add('placeholder');
+  }
+}
+
+// Patch renderOutput to also update share button
+const _origRenderOutput = renderOutput;
+renderOutput = function() {
+  _origRenderOutput();
+  updateShareBtn();
+  saveToLocalStorage();
+};
+
+// --- LOCAL STORAGE ---
+
+function saveToLocalStorage() {
+  const name = document.getElementById('rider-name').value.trim();
+  const tz = document.getElementById('rider-tz').value;
+  const data = { name, tz, slots };
+  try { localStorage.setItem('ta_enter', JSON.stringify(data)); } catch(e) {}
+}
+
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('ta_enter');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.name) document.getElementById('rider-name').value = data.name;
+    if (data.tz) {
+      const sel = document.getElementById('rider-tz');
+      if (Array.from(sel.options).some(o => o.value === data.tz)) sel.value = data.tz;
+    }
+    if (Array.isArray(data.slots) && data.slots.length > 0) {
+      slots = data.slots;
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+// --- LOAD FROM URL HASH ---
+
+function loadFromHash() {
+  const hash = location.hash;
+  if (!hash || !hash.startsWith('#d=')) return false;
+  const encoded = hash.slice(3);
+  const data = decodeAvailability(encoded);
+  if (!data) return false;
+  // Load into merge mode as a pre-filled rider block
+  switchTab('merge');
+  const block = '-- AVAILABILITY BLOCK --\n' + JSON.stringify({
+    name: data.name, tz: data.tz,
+    slots: data.slots.map(s => ({ s: s.s, e: s.e }))
+  }, null, 2);
+  // Add to first empty block, or append
+  let placed = false;
+  for (let i = 0; i < riderBlocks.length; i++) {
+    if (!riderBlocks[i].trim()) { riderBlocks[i] = block; placed = true; break; }
+  }
+  if (!placed) { riderBlocks.push(block); }
+  renderRiderGrid();
+  // Clear hash so refreshing doesn't re-add
+  history.replaceState(null, '', location.pathname);
+  return true;
+}
+
+// Save on name input too
+document.getElementById('rider-name').addEventListener('input', () => { renderOutput(); });
+
+// Initialize
+if (!loadFromHash()) {
+  loadFromLocalStorage();
+}
 renderSlots();
 renderOutput();
 
@@ -896,6 +1050,7 @@ function resetEnter() {
   slots = [];
   renderSlots();
   renderOutput();
+  try { localStorage.removeItem('ta_enter'); } catch(e) {}
 }
 
 // --- MERGE MODE ---
@@ -974,7 +1129,26 @@ document.getElementById('threshold-slider').addEventListener('input', function()
 
 function parseBlock(text) {
   if (!text || !text.trim()) return null;
-  const cleaned = text.split('\n').filter(l => !l.trim().startsWith('--')).join('\n').trim();
+  // Try to decode a share URL
+  const trimmed = text.trim();
+  const hashIdx = trimmed.indexOf('#d=');
+  if (hashIdx !== -1) {
+    const encoded = trimmed.slice(hashIdx + 3);
+    const decoded = decodeAvailability(encoded);
+    if (decoded) {
+      const validSlots = [];
+      for (const sl of (decoded.slots || [])) {
+        const sKey = sl.s || sl.start, eKey = sl.e || sl.end;
+        if (!sKey || !eKey) continue;
+        const sd = new Date(sKey), ed = new Date(eKey);
+        if (isNaN(sd) || isNaN(ed) || ed <= sd) continue;
+        validSlots.push({ s: sd.toISOString(), e: ed.toISOString() });
+      }
+      if (validSlots.length) return { name: String(decoded.name), tz: decoded.tz || 'UTC', slots: validSlots };
+    }
+  }
+  // Standard block parsing
+  const cleaned = trimmed.split('\n').filter(l => !l.trim().startsWith('--')).join('\n').trim();
   let obj;
   try { obj = JSON.parse(cleaned); } catch(e) { return null; }
   if (!obj || typeof obj !== 'object') return null;
