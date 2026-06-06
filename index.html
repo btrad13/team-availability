@@ -691,7 +691,6 @@ function updateDisplayTzAbbrev() {
   document.getElementById('display-tz-abbrev').textContent = tzAbbrev(document.getElementById('display-tz').value);
 }
 updateDisplayTzAbbrev();
-document.getElementById('display-tz').addEventListener('change', updateDisplayTzAbbrev);
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -890,34 +889,6 @@ function updateShareBtn() {
 
 function renderOutput() {
   updateShareBtn();
-  saveToLocalStorage();
-}
-
-// --- LOCAL STORAGE ---
-
-function saveToLocalStorage() {
-  const name = document.getElementById('rider-name').value.trim();
-  const tz = document.getElementById('rider-tz').value;
-  const data = { name, tz, slots };
-  try { localStorage.setItem('ta_enter', JSON.stringify(data)); } catch(e) {}
-}
-
-function loadFromLocalStorage() {
-  try {
-    const raw = localStorage.getItem('ta_enter');
-    if (!raw) return false;
-    const data = JSON.parse(raw);
-    if (data.name) document.getElementById('rider-name').value = data.name;
-    if (data.tz) {
-      const sel = document.getElementById('rider-tz');
-      if (Array.from(sel.options).some(o => o.value === data.tz)) sel.value = data.tz;
-    }
-    if (Array.isArray(data.slots) && data.slots.length > 0) {
-      slots = data.slots;
-      return true;
-    }
-  } catch(e) {}
-  return false;
 }
 
 // --- LOAD FROM URL HASH ---
@@ -950,9 +921,7 @@ function loadFromHash() {
 document.getElementById('rider-name').addEventListener('input', () => { renderOutput(); });
 
 // Initialize
-if (!loadFromHash()) {
-  loadFromLocalStorage();
-}
+loadFromHash();
 renderSlots();
 renderOutput();
 
@@ -966,7 +935,6 @@ function resetEnter() {
   slots = [];
   renderSlots();
   renderOutput();
-  try { localStorage.removeItem('ta_enter'); } catch(e) {}
 }
 
 // --- MERGE MODE ---
@@ -1037,11 +1005,6 @@ function removeRiderBlock(i) {
   riderBlocks.splice(i, 1);
   renderRiderGrid();
 }
-
-document.getElementById('threshold-slider').addEventListener('input', function() {
-  const max = Math.max(2, parseInt(this.max));
-  document.getElementById('threshold-val').textContent = this.value + ' / ' + max;
-});
 
 function parseBlock(text) {
   if (!text || !text.trim()) return null;
@@ -1185,7 +1148,58 @@ function findOverlaps() {
   resultsDiv.innerHTML = html;
 }
 
+// --- MERGE LOCAL STORAGE ---
+
+function saveMergeToLS() {
+  const data = {
+    tz: document.getElementById('display-tz').value,
+    threshold: document.getElementById('threshold-slider').value,
+    blocks: riderBlocks
+  };
+  try { localStorage.setItem('ta_merge', JSON.stringify(data)); } catch(e) {}
+}
+
+function loadMergeFromLS() {
+  try {
+    const raw = localStorage.getItem('ta_merge');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.tz) {
+      const sel = document.getElementById('display-tz');
+      if (Array.from(sel.options).some(o => o.value === data.tz)) {
+        sel.value = data.tz;
+        updateDisplayTzAbbrev();
+      }
+    }
+    if (data.threshold) {
+      document.getElementById('threshold-slider').value = data.threshold;
+    }
+    if (Array.isArray(data.blocks) && data.blocks.length > 0) {
+      riderBlocks = data.blocks;
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+loadMergeFromLS();
 renderRiderGrid();
+
+// Auto-save merge on changes
+document.getElementById('display-tz').addEventListener('change', () => { updateDisplayTzAbbrev(); saveMergeToLS(); });
+document.getElementById('threshold-slider').addEventListener('input', function() {
+  const max = Math.max(2, parseInt(this.max));
+  document.getElementById('threshold-val').textContent = this.value + ' / ' + max;
+  saveMergeToLS();
+});
+
+// Patch rider input, add/remove to save
+const _origOnRiderInput = onRiderInput;
+onRiderInput = function(i, val) { _origOnRiderInput(i, val); saveMergeToLS(); };
+const _origAddRiderBlock = addRiderBlock;
+addRiderBlock = function() { _origAddRiderBlock(); saveMergeToLS(); };
+const _origRemoveRiderBlock = removeRiderBlock;
+removeRiderBlock = function(i) { _origRemoveRiderBlock(i); saveMergeToLS(); };
 
 function resetMerge() {
   document.getElementById('display-tz').value = browserTz;
@@ -1194,6 +1208,7 @@ function resetMerge() {
   document.getElementById('merge-results').innerHTML = '';
   riderBlocks = ['', ''];
   renderRiderGrid();
+  try { localStorage.removeItem('ta_merge'); } catch(e) {}
 }
 </script>
 </body>
