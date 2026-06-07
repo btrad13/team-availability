@@ -889,6 +889,34 @@ function updateShareBtn() {
 
 function renderOutput() {
   updateShareBtn();
+  saveToLocalStorage();
+}
+
+// --- LOCAL STORAGE ---
+
+function saveToLocalStorage() {
+  const name = document.getElementById('rider-name').value.trim();
+  const tz = document.getElementById('rider-tz').value;
+  const data = { name, tz, slots };
+  try { localStorage.setItem('ta_enter', JSON.stringify(data)); } catch(e) {}
+}
+
+function loadFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('ta_enter');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.name) document.getElementById('rider-name').value = data.name;
+    if (data.tz) {
+      const sel = document.getElementById('rider-tz');
+      if (Array.from(sel.options).some(o => o.value === data.tz)) sel.value = data.tz;
+    }
+    if (Array.isArray(data.slots) && data.slots.length > 0) {
+      slots = data.slots;
+      return true;
+    }
+  } catch(e) {}
+  return false;
 }
 
 // --- LOAD FROM URL HASH ---
@@ -921,7 +949,9 @@ function loadFromHash() {
 document.getElementById('rider-name').addEventListener('input', () => { renderOutput(); });
 
 // Initialize
-loadFromHash();
+if (!loadFromHash()) {
+  loadFromLocalStorage();
+}
 renderSlots();
 renderOutput();
 
@@ -935,6 +965,7 @@ function resetEnter() {
   slots = [];
   renderSlots();
   renderOutput();
+  try { localStorage.removeItem('ta_enter'); } catch(e) {}
 }
 
 // --- MERGE MODE ---
