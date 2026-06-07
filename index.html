@@ -236,10 +236,14 @@ textarea {
   font-size: 12px;
   line-height: 1.55;
   resize: vertical;
-  min-height: 132px;
+  min-height: 34px;
   white-space: pre;
   overflow-wrap: normal;
   overflow-x: auto;
+}
+.rider-card textarea {
+  height: 34px;
+  min-height: 34px;
 }
 
 /* ---------- Buttons ---------- */
@@ -373,10 +377,9 @@ input[type="range"]::-moz-range-thumb {
 /* riders grid */
 .riders-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
-@media (max-width: 700px) { .riders-grid { grid-template-columns: 1fr; } }
 .rider-card .rc-head {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 7px;
@@ -1003,7 +1006,7 @@ function renderRiderGrid() {
       '<div class="rc-toolbar"><span class="status-pill' + statusCls + '">' + statusText + '</span>' +
       (riderBlocks.length > 1 ? '<button class="rc-x" onclick="removeRiderBlock(' + i + ')" title="Remove rider">&#10005;</button>' : '') +
       '</div></div>' +
-      '<textarea spellcheck="false" placeholder="-- AVAILABILITY BLOCK --&#10;{ paste rider payload here }" ' +
+      '<textarea spellcheck="false" placeholder="Paste share link or availability block here" ' +
       'oninput="onRiderInput(' + i + ', this.value)">' + escHtml(b) + '</textarea></div>';
   }).join('');
   updateRiderParseStatus();
