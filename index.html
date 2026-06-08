@@ -582,14 +582,10 @@ input[type="range"]::-moz-range-thumb {
 
           <div class="field" style="margin-bottom:12px">
             <label class="cap">Time window</label>
-            <div class="row add" style="margin:0">
-              <div class="field" style="margin:0;flex:1">
-                <input type="time" id="slot-time-start" step="900">
-              </div>
-              <span style="color:var(--muted);font-size:13px;padding:0 4px">to</span>
-              <div class="field" style="margin:0;flex:1">
-                <input type="time" id="slot-time-end" step="900">
-              </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="time" id="slot-time-start" step="900" style="width:auto">
+              <span style="color:var(--muted);font-size:13px">to</span>
+              <input type="time" id="slot-time-end" step="900" style="width:auto">
             </div>
           </div>
 
