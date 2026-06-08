@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
 :root {
   --bg: #0d0f14;
@@ -327,8 +329,44 @@ textarea {
   text-overflow: ellipsis; min-width: 0;
 }
 .share-bar .share-url.placeholder { color: var(--muted-2); }
+
+.room-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); padding: 12px 14px;
+  border: 1px solid var(--line);
+}
+.room-bar input[type="text"] {
+  flex: 1; max-width: 280px;
+  text-transform: lowercase;
+}
+.room-bar .room-status {
+  flex: 1; font-family: var(--mono); font-size: 11px;
+  color: var(--muted); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.room-bar .room-status.ok { color: var(--green); }
+.room-bar .room-status.err { color: var(--danger); }
+.room-bar .room-status.loading { color: var(--accent); }
+.room-riders {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 14px; background: var(--panel);
+  border: 1px solid var(--line); border-top: none;
+}
+.room-riders:empty { display: none; }
+.room-rider-chip {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: #1a2a1e; color: var(--green);
+  border: 1px solid #2a3a2e; padding: 3px 10px;
+}
 .btn.blue {
   background: var(--blue); border-color: var(--blue); color: #06222e;
+}
+.btn.green {
+  background: var(--green); border-color: var(--green); color: #062e1a;
+}
+.btn.green:disabled {
+  opacity: 0.4; cursor: not-allowed;
 }
 .btn.blue:hover { filter: brightness(1.08); }
 
@@ -556,6 +594,23 @@ input[type="range"]::-moz-range-thumb {
       <div class="share-url placeholder" id="share-url">Add your name and at least one slot to generate a share link</div>
       <button class="btn blue" id="share-btn" onclick="generateShareLink()" disabled>&#9656; Share Link</button>
     </div>
+
+    <div class="spacer"></div>
+    <div class="pnl">
+      <div class="sec-head">
+        <div class="lbl"><span class="dot" style="background:var(--green)"></span>Save to Room</div>
+        <div class="meta">OPTIONAL</div>
+      </div>
+      <div class="sec-body">
+        <div class="hint" style="margin-bottom:10px">Enter a room code to share availability with your team — no link needed.</div>
+        <div class="room-bar" style="border:none;padding:0">
+          <input type="text" id="enter-room-code" placeholder="e.g. sunday-crit" spellcheck="false">
+          <button class="btn green" id="enter-room-save" onclick="saveToRoom()" disabled>&#9656; Save to Room</button>
+        </div>
+        <div class="room-status" id="enter-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
+      </div>
+    </div>
+
     <div class="mode-footer">
       <button class="btn danger" onclick="resetEnter()">&#10005; Reset All</button>
     </div>
@@ -572,6 +627,23 @@ input[type="range"]::-moz-range-thumb {
             Results shown in <span class="inline-note" id="display-tz-abbrev"></span>.
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="pnl">
+      <div class="sec-head">
+        <div class="lbl"><span class="dot" style="background:var(--green)"></span>Load from Room</div>
+        <div class="meta">OPTIONAL</div>
+      </div>
+      <div class="sec-body">
+        <div class="hint" style="margin-bottom:10px">Enter a room code to load all saved rider availability automatically.</div>
+        <div class="room-bar" style="border:none;padding:0">
+          <input type="text" id="merge-room-code" placeholder="e.g. sunday-crit" spellcheck="false">
+          <button class="btn green" id="merge-room-load" onclick="loadFromRoom()">&#9656; Load from Room</button>
+        </div>
+        <div class="room-status" id="merge-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
+        <div class="room-riders" id="merge-room-riders"></div>
       </div>
     </div>
 
@@ -1240,9 +1312,130 @@ function resetMerge() {
   updateDisplayTzAbbrev();
   document.getElementById('threshold-slider').value = 2;
   document.getElementById('merge-results').innerHTML = '';
+  document.getElementById('merge-room-code').value = '';
+  document.getElementById('merge-room-status').textContent = '';
+  document.getElementById('merge-room-riders').innerHTML = '';
   riderBlocks = ['', ''];
   renderRiderGrid();
   try { localStorage.removeItem('ta_merge'); } catch(e) {}
+}
+
+// ===========================================
+// FIREBASE ROOMS
+// ===========================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCJbIkrPZxUU3h9NFPffM-KD0qeWYp6I64",
+  authDomain: "team-availability-994aa.firebaseapp.com",
+  databaseURL: "https://team-availability-994aa-default-rtdb.firebaseio.com",
+  projectId: "team-availability-994aa",
+  storageBucket: "team-availability-994aa.firebasestorage.app",
+  messagingSenderId: "512936522767",
+  appId: "1:512936522767:web:c73eb084c762f911c49f7a"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+function sanitizeRoomCode(code) {
+  return code.toLowerCase().replace(/[^a-z0-9\-]/g, '').slice(0, 40);
+}
+
+// --- ENTER MODE: Save to Room ---
+
+document.getElementById('enter-room-code').addEventListener('input', function() {
+  const code = sanitizeRoomCode(this.value);
+  const nameVal = document.getElementById('rider-name').value.trim();
+  document.getElementById('enter-room-save').disabled = !code || !nameVal || slots.length === 0;
+});
+
+// Also update save button when name or slots change
+const origRenderOutput = renderOutput;
+renderOutput = function() {
+  origRenderOutput();
+  const code = sanitizeRoomCode(document.getElementById('enter-room-code').value);
+  const nameVal = document.getElementById('rider-name').value.trim();
+  document.getElementById('enter-room-save').disabled = !code || !nameVal || slots.length === 0;
+};
+
+function saveToRoom() {
+  const code = sanitizeRoomCode(document.getElementById('enter-room-code').value);
+  const name = document.getElementById('rider-name').value.trim();
+  const tz = document.getElementById('rider-tz').value;
+  const statusEl = document.getElementById('enter-room-status');
+
+  if (!code) { statusEl.textContent = 'Enter a room code.'; statusEl.style.color = 'var(--danger)'; return; }
+  if (!name || slots.length === 0) { statusEl.textContent = 'Add your name and at least one slot first.'; statusEl.style.color = 'var(--danger)'; return; }
+
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = 'var(--accent)';
+
+  const riderKey = name.replace(/[.#$/\[\]]/g, '_');
+  const payload = {
+    name: name,
+    tz: tz,
+    slots: slots.map(s => ({ s: s.s, e: s.e })),
+    updatedAt: Date.now()
+  };
+
+  db.ref('rooms/' + code + '/riders/' + riderKey).set(payload)
+    .then(() => {
+      statusEl.textContent = '✓ Saved to room "' + code + '" as ' + name;
+      statusEl.style.color = 'var(--green)';
+    })
+    .catch((err) => {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    });
+}
+
+// --- MERGE MODE: Load from Room ---
+
+function loadFromRoom() {
+  const code = sanitizeRoomCode(document.getElementById('merge-room-code').value);
+  const statusEl = document.getElementById('merge-room-status');
+  const chipsEl = document.getElementById('merge-room-riders');
+
+  if (!code) { statusEl.textContent = 'Enter a room code.'; statusEl.style.color = 'var(--danger)'; return; }
+
+  statusEl.textContent = 'Loading...';
+  statusEl.style.color = 'var(--accent)';
+  chipsEl.innerHTML = '';
+
+  db.ref('rooms/' + code + '/riders').once('value')
+    .then((snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        statusEl.textContent = 'No riders found in room "' + code + '".';
+        statusEl.style.color = 'var(--danger)';
+        return;
+      }
+
+      const riders = Object.values(data);
+      // Convert each rider to an availability block and load into rider blocks
+      riderBlocks = riders.map(r => {
+        return '-- AVAILABILITY BLOCK --\n' + JSON.stringify({
+          name: r.name,
+          tz: r.tz,
+          slots: r.slots
+        }, null, 2);
+      });
+
+      renderRiderGrid();
+      saveMergeToLS();
+
+      statusEl.textContent = '✓ Loaded ' + riders.length + ' rider' + (riders.length === 1 ? '' : 's') + ' from room "' + code + '"';
+      statusEl.style.color = 'var(--green)';
+
+      // Show rider name chips
+      chipsEl.innerHTML = riders.map(r =>
+        '<span class="room-rider-chip">' + escHtml(r.name) + '</span>'
+      ).join('');
+    })
+    .catch((err) => {
+      statusEl.textContent = 'Error: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    });
 }
 </script>
 </body>
