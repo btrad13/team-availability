@@ -370,6 +370,25 @@ textarea {
 }
 .btn.blue:hover { filter: brightness(1.08); }
 
+/* ---------- Date chips (bulk add) ---------- */
+.date-chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.date-chip {
+  font-family: var(--cond); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--line); padding: 6px 10px;
+  cursor: pointer; user-select: none; transition: all 0.15s;
+}
+.date-chip:hover { border-color: var(--muted); color: var(--ink); }
+.date-chip.selected {
+  background: #1a2a1e; color: var(--green);
+  border-color: var(--green);
+}
+.date-chip .chip-dow { color: var(--accent); margin-right: 4px; }
+.date-chip.selected .chip-dow { color: var(--accent); }
+
 /* ---------- Controls bar (mode 2) ---------- */
 .controls {
   display: grid;
@@ -558,20 +577,30 @@ input[type="range"]::-moz-range-thumb {
 
           <div class="spacer" style="height:6px"></div>
           <div class="sec-head" style="margin:0 -18px 16px;border-top:1px solid var(--line)">
-            <div class="lbl"><span class="dot" style="background:var(--blue)"></span>Add Availability Slot</div>
+            <div class="lbl"><span class="dot" style="background:var(--blue)"></span>Add Availability</div>
           </div>
 
-          <div class="row add">
-            <div class="field" style="margin:0">
-              <label class="cap">Start</label>
-              <input type="datetime-local" id="slot-start">
+          <div class="field" style="margin-bottom:12px">
+            <label class="cap">Time window</label>
+            <div class="row add" style="margin:0">
+              <div class="field" style="margin:0;flex:1">
+                <input type="time" id="slot-time-start" step="900">
+              </div>
+              <span style="color:var(--muted);font-size:13px;padding:0 4px">to</span>
+              <div class="field" style="margin:0;flex:1">
+                <input type="time" id="slot-time-end" step="900">
+              </div>
             </div>
-            <div class="field" style="margin:0">
-              <label class="cap">End</label>
-              <input type="datetime-local" id="slot-end">
-            </div>
-            <button class="btn primary" onclick="addSlot()">
-              <span class="plus">+</span> Add
+          </div>
+
+          <div class="field" style="margin-bottom:12px">
+            <label class="cap">Select dates</label>
+            <div class="date-chips" id="date-chips"></div>
+          </div>
+
+          <div class="row add" style="gap:8px">
+            <button class="btn primary" id="bulk-add-btn" onclick="bulkAddSlots()" disabled>
+              <span class="plus">+</span> <span id="bulk-add-label">Add Slots</span>
             </button>
           </div>
           <div id="slot-error"></div>
@@ -760,7 +789,7 @@ function updateTzMeta() {
   document.getElementById('tz-abbrev-meta').textContent = 'LOCAL · ' + tzAbbrev(tz);
 }
 updateTzMeta();
-document.getElementById('rider-tz').addEventListener('change', () => { updateTzMeta(); renderSlots(); renderOutput(); });
+document.getElementById('rider-tz').addEventListener('change', () => { updateTzMeta(); renderDateChips(); renderSlots(); renderOutput(); });
 
 function updateDisplayTzAbbrev() {
   document.getElementById('display-tz-abbrev').textContent = tzAbbrev(document.getElementById('display-tz').value);
@@ -834,7 +863,61 @@ function dayLabelParts(date, tz) {
   return { dow: m.weekday, date: m.month + ' ' + m.day + ' ' + m.year };
 }
 
-function addSlot() {
+// --- BULK ADD: Date chips ---
+
+let selectedDates = new Set();
+
+function renderDateChips() {
+  const container = document.getElementById('date-chips');
+  const tz = document.getElementById('rider-tz').value;
+  const now = new Date();
+  const chips = [];
+
+  for (let d = 0; d < 14; d++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + d);
+    const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Get day-of-week and short date in rider's tz
+    const parts = fmtParts(date, tz);
+    const dow = parts.weekday.slice(0, 3).toUpperCase();
+    const label = parts.month + ' ' + parts.day;
+    const sel = selectedDates.has(dateStr) ? ' selected' : '';
+
+    chips.push('<div class="date-chip' + sel + '" data-date="' + dateStr + '" onclick="toggleDateChip(this)">' +
+      '<span class="chip-dow">' + dow + '</span>' + label + '</div>');
+  }
+  container.innerHTML = chips.join('');
+  updateBulkAddBtn();
+}
+
+function toggleDateChip(el) {
+  const date = el.dataset.date;
+  if (selectedDates.has(date)) {
+    selectedDates.delete(date);
+    el.classList.remove('selected');
+  } else {
+    selectedDates.add(date);
+    el.classList.add('selected');
+  }
+  updateBulkAddBtn();
+}
+
+function updateBulkAddBtn() {
+  const count = selectedDates.size;
+  const startTime = document.getElementById('slot-time-start').value;
+  const endTime = document.getElementById('slot-time-end').value;
+  const btn = document.getElementById('bulk-add-btn');
+  const label = document.getElementById('bulk-add-label');
+
+  btn.disabled = count === 0 || !startTime || !endTime;
+  label.textContent = count > 0 ? 'Add ' + count + ' Slot' + (count === 1 ? '' : 's') : 'Add Slots';
+}
+
+document.getElementById('slot-time-start').addEventListener('input', updateBulkAddBtn);
+document.getElementById('slot-time-end').addEventListener('input', updateBulkAddBtn);
+
+function bulkAddSlots() {
   const errEl = document.getElementById('slot-error');
   errEl.innerHTML = '';
 
@@ -844,26 +927,45 @@ function addSlot() {
     return;
   }
 
-  const startStr = document.getElementById('slot-start').value;
-  const endStr = document.getElementById('slot-end').value;
-  if (!startStr || !endStr) {
+  const startTime = document.getElementById('slot-time-start').value;
+  const endTime = document.getElementById('slot-time-end').value;
+  if (!startTime || !endTime) {
     errEl.innerHTML = '<div class="hint" style="color:var(--danger);margin-top:10px">Set both a start and end time.</div>';
     return;
   }
 
-  const tz = document.getElementById('rider-tz').value;
-  const s = localToUtc(startStr, tz);
-  const e = localToUtc(endStr, tz);
-  if (e <= s) {
-    errEl.innerHTML = '<div class="hint" style="color:var(--danger);margin-top:10px">End must be after start.</div>';
+  if (selectedDates.size === 0) {
+    errEl.innerHTML = '<div class="hint" style="color:var(--danger);margin-top:10px">Select at least one date.</div>';
     return;
   }
 
-  slots.push({ s: s.toISOString(), e: e.toISOString() });
+  const tz = document.getElementById('rider-tz').value;
+  let addedCount = 0;
+
+  for (const dateStr of Array.from(selectedDates).sort()) {
+    const startStr = dateStr + 'T' + startTime;
+    const endStr = dateStr + 'T' + endTime;
+    const s = localToUtc(startStr, tz);
+    const e = localToUtc(endStr, tz);
+    if (e <= s) continue;
+
+    slots.push({ s: s.toISOString(), e: e.toISOString() });
+    addedCount++;
+  }
+
+  if (addedCount === 0) {
+    errEl.innerHTML = '<div class="hint" style="color:var(--danger);margin-top:10px">End time must be after start time.</div>';
+    return;
+  }
+
   slots.sort((a, b) => new Date(a.s) - new Date(b.s));
+  selectedDates.clear();
+  renderDateChips();
   renderSlots();
   renderOutput();
 }
+
+renderDateChips();
 
 function removeSlot(i) {
   slots.splice(i, 1);
