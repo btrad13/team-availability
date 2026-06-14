@@ -782,6 +782,19 @@ function switchTab(name) {
 
 let slots = [];
 
+// Slots are considered expired once their end time is more than this
+// long in the past. Used to auto-hide and auto-prune stale availability.
+const PRUNE_CUTOFF_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function isSlotExpired(slot) {
+  const end = new Date(slot.e).getTime();
+  return isNaN(end) || end < (Date.now() - PRUNE_CUTOFF_MS);
+}
+
+function pruneExpired(slotArr) {
+  return (slotArr || []).filter(s => !isSlotExpired(s));
+}
+
 function localToUtc(wallStr, tz) {
   if (!wallStr) return null;
   const [datePart, timePart] = wallStr.split('T');
@@ -951,6 +964,7 @@ function removeSlot(i) {
 }
 
 function renderSlots() {
+  slots = pruneExpired(slots);
   const container = document.getElementById('slot-list');
   const tz = document.getElementById('rider-tz').value;
   document.getElementById('slot-count-meta').textContent = slots.length + ' ADDED · ' + tzAbbrev(tz);
@@ -1019,7 +1033,7 @@ function loadFromLocalStorage() {
       if (Array.from(sel.options).some(o => o.value === data.tz)) sel.value = data.tz;
     }
     if (Array.isArray(data.slots) && data.slots.length > 0) {
-      slots = data.slots;
+      slots = pruneExpired(data.slots);
       return true;
     }
   } catch(e) {}
@@ -1189,7 +1203,10 @@ function findOverlaps() {
   const riders = [];
   riderBlocks.forEach(b => {
     const p = parseBlock(b);
-    if (p) riders.push(p);
+    if (!p) return;
+    // Ignore slots more than the cutoff in the past so overlaps stay current.
+    const kept = pruneExpired(p.slots);
+    if (kept.length) riders.push({ name: p.name, tz: p.tz, slots: kept });
   });
 
   if (riders.length === 0) {
@@ -1397,7 +1414,10 @@ function saveToRoom() {
   const statusEl = document.getElementById('enter-room-status');
 
   if (!code) { statusEl.textContent = 'Enter a room code.'; statusEl.style.color = 'var(--danger)'; return; }
-  if (!name || slots.length === 0) { statusEl.textContent = 'Add your name and at least one slot first.'; statusEl.style.color = 'var(--danger)'; return; }
+
+  slots = pruneExpired(slots);
+  renderSlots();
+  if (!name || slots.length === 0) { statusEl.textContent = 'Add your name and at least one upcoming slot first.'; statusEl.style.color = 'var(--danger)'; return; }
 
   statusEl.textContent = 'Saving...';
   statusEl.style.color = 'var(--accent)';
@@ -1443,9 +1463,44 @@ function loadFromRoom() {
         return;
       }
 
-      const riders = Object.values(data);
-      // Convert each rider to an availability block and load into rider blocks
-      riderBlocks = riders.map(r => {
+      // Prune slots older than the cutoff, writing changes back to the room.
+      const survivors = [];
+      let prunedSlotCount = 0;
+      let removedRiderCount = 0;
+
+      Object.entries(data).forEach(([key, r]) => {
+        const kept = pruneExpired(r.slots);
+        const dropped = (r.slots || []).length - kept.length;
+
+        if (kept.length === 0) {
+          // No upcoming availability left — remove the rider from the room.
+          if ((r.slots || []).length > 0) { removedRiderCount++; prunedSlotCount += dropped; }
+          db.ref('rooms/' + code + '/riders/' + key).remove().catch(() => {});
+          return;
+        }
+
+        if (dropped > 0) {
+          // Some slots expired — write back the trimmed set.
+          prunedSlotCount += dropped;
+          db.ref('rooms/' + code + '/riders/' + key).set({
+            name: r.name, tz: r.tz, slots: kept, updatedAt: r.updatedAt || Date.now()
+          }).catch(() => {});
+        }
+
+        survivors.push({ name: r.name, tz: r.tz, slots: kept });
+      });
+
+      if (survivors.length === 0) {
+        statusEl.textContent = 'No upcoming availability found in room "' + code + '".';
+        statusEl.style.color = 'var(--danger)';
+        riderBlocks = ['', ''];
+        renderRiderGrid();
+        saveMergeToLS();
+        return;
+      }
+
+      // Convert each surviving rider to an availability block.
+      riderBlocks = survivors.map(r => {
         return '-- AVAILABILITY BLOCK --\n' + JSON.stringify({
           name: r.name,
           tz: r.tz,
@@ -1456,11 +1511,16 @@ function loadFromRoom() {
       renderRiderGrid();
       saveMergeToLS();
 
-      statusEl.textContent = '✓ Loaded ' + riders.length + ' rider' + (riders.length === 1 ? '' : 's') + ' from room "' + code + '"';
+      let msg = '✓ Loaded ' + survivors.length + ' rider' + (survivors.length === 1 ? '' : 's') + ' from room "' + code + '"';
+      if (prunedSlotCount > 0) {
+        msg += ' · cleaned ' + prunedSlotCount + ' past slot' + (prunedSlotCount === 1 ? '' : 's');
+        if (removedRiderCount > 0) msg += ', removed ' + removedRiderCount + ' empty rider' + (removedRiderCount === 1 ? '' : 's');
+      }
+      statusEl.textContent = msg;
       statusEl.style.color = 'var(--green)';
 
       // Show rider name chips
-      chipsEl.innerHTML = riders.map(r =>
+      chipsEl.innerHTML = survivors.map(r =>
         '<span class="room-rider-chip">' + escHtml(r.name) + '</span>'
       ).join('');
     })
