@@ -316,20 +316,7 @@ textarea {
   text-transform: uppercase;
 }
 
-/* ---------- Share link ---------- */
-.share-bar {
-  display: flex; align-items: center; gap: 12px;
-  border: 1px solid var(--line); border-top: none;
-  background: var(--panel); padding: 12px 14px;
-}
-.share-bar .share-url {
-  flex: 1; font-family: var(--mono); font-size: 11px;
-  color: var(--blue); background: #0c0e13; border: 1px solid var(--line);
-  padding: 8px 10px; white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; min-width: 0;
-}
-.share-bar .share-url.placeholder { color: var(--muted-2); }
-
+/* ---------- Room bar ---------- */
 .room-bar {
   display: flex; align-items: center; gap: 12px;
   background: var(--panel); padding: 12px 14px;
@@ -615,21 +602,15 @@ input[type="range"]::-moz-range-thumb {
     </div>
 
     <div class="spacer"></div>
-    <div class="share-bar" style="border:1px solid var(--line)">
-      <div class="share-url placeholder" id="share-url">Add your name and at least one slot to generate a share link</div>
-      <button class="btn blue" id="share-btn" onclick="generateShareLink()" disabled>&#9656; Share Link</button>
-    </div>
-
-    <div class="spacer"></div>
     <div class="pnl">
       <div class="sec-head">
         <div class="lbl"><span class="dot" style="background:var(--green)"></span>Save to Room</div>
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Enter a room code to share availability with your team — no link needed.</div>
+        <div class="hint" style="margin-bottom:10px">Enter a room code to share availability with your team.</div>
         <div class="room-bar" style="border:none;padding:0">
-          <input type="text" id="enter-room-code" placeholder="e.g. sunday-crit" spellcheck="false">
+          <input type="text" id="enter-room-code" placeholder="e.g. mana-surge" spellcheck="false" value="mana-surge">
           <button class="btn green" id="enter-room-save" onclick="saveToRoom()" disabled>&#9656; Save to Room</button>
         </div>
         <div class="room-status" id="enter-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
@@ -664,7 +645,7 @@ input[type="range"]::-moz-range-thumb {
       <div class="sec-body">
         <div class="hint" style="margin-bottom:10px">Enter a room code to load all saved rider availability automatically.</div>
         <div class="room-bar" style="border:none;padding:0">
-          <input type="text" id="merge-room-code" placeholder="e.g. sunday-crit" spellcheck="false">
+          <input type="text" id="merge-room-code" placeholder="e.g. mana-surge" spellcheck="false" value="mana-surge">
           <button class="btn green" id="merge-room-load" onclick="loadFromRoom()">&#9656; Load from Room</button>
         </div>
         <div class="room-status" id="merge-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
@@ -996,25 +977,12 @@ function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// --- URL ENCODING / SHARING ---
-
-function toBase64Url(str) {
-  return btoa(unescape(encodeURIComponent(str)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+// --- URL DECODING (backward-compat for old share links) ---
 
 function fromBase64Url(b64) {
   const padded = b64.replace(/-/g, '+').replace(/_/g, '/');
   try { return decodeURIComponent(escape(atob(padded))); }
   catch(e) { return null; }
-}
-
-function encodeAvailability() {
-  const name = document.getElementById('rider-name').value.trim();
-  const tz = document.getElementById('rider-tz').value;
-  if (!name || slots.length === 0) return null;
-  const payload = { v: 1, name, tz, slots: slots.map(s => ({ s: s.s, e: s.e })) };
-  return toBase64Url(JSON.stringify(payload));
 }
 
 function decodeAvailability(encoded) {
@@ -1027,41 +995,7 @@ function decodeAvailability(encoded) {
   } catch(e) { return null; }
 }
 
-function generateShareLink() {
-  const encoded = encodeAvailability();
-  if (!encoded) return;
-  const url = location.origin + location.pathname + '#d=' + encoded;
-  const urlEl = document.getElementById('share-url');
-  urlEl.textContent = url;
-  urlEl.classList.remove('placeholder');
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.getElementById('share-btn');
-    btn.textContent = '✓ Copied!';
-    btn.style.background = 'var(--green)';
-    btn.style.borderColor = 'var(--green)';
-    setTimeout(() => {
-      btn.innerHTML = '&#9656; Share Link';
-      btn.style.background = '';
-      btn.style.borderColor = '';
-    }, 1600);
-  });
-}
-
-function updateShareBtn() {
-  const name = document.getElementById('rider-name').value.trim();
-  const btn = document.getElementById('share-btn');
-  const urlEl = document.getElementById('share-url');
-  if (name && slots.length > 0) {
-    btn.disabled = false;
-  } else {
-    btn.disabled = true;
-    urlEl.textContent = 'Add your name and at least one slot to generate a share link';
-    urlEl.classList.add('placeholder');
-  }
-}
-
 function renderOutput() {
-  updateShareBtn();
   saveToLocalStorage();
 }
 
@@ -1176,7 +1110,7 @@ function renderRiderGrid() {
       '<div class="rc-toolbar"><span class="status-pill' + statusCls + '">' + statusText + '</span>' +
       (riderBlocks.length > 1 ? '<button class="rc-x" onclick="removeRiderBlock(' + i + ')" title="Remove rider">&#10005;</button>' : '') +
       '</div></div>' +
-      '<textarea spellcheck="false" placeholder="Paste share link or availability block here" ' +
+      '<textarea spellcheck="false" placeholder="Paste availability block here" ' +
       'oninput="onRiderInput(' + i + ', this.value)">' + escHtml(b) + '</textarea></div>';
   }).join('');
   updateRiderParseStatus();
