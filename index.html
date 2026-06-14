@@ -795,6 +795,19 @@ function pruneExpired(slotArr) {
   return (slotArr || []).filter(s => !isSlotExpired(s));
 }
 
+// Enter mode uses a stricter rule: hide any slot whose calendar date (in the
+// rider's timezone) is before today — no 24h grace. Merge/overlap logic keeps
+// the 24h grace via pruneExpired above.
+function isBeforeToday(slot, tz) {
+  const end = new Date(slot.e);
+  if (isNaN(end)) return true;
+  return dayKey(end, tz) < dayKey(new Date(), tz);
+}
+
+function pruneBeforeToday(slotArr, tz) {
+  return (slotArr || []).filter(s => !isBeforeToday(s, tz));
+}
+
 function localToUtc(wallStr, tz) {
   if (!wallStr) return null;
   const [datePart, timePart] = wallStr.split('T');
@@ -964,9 +977,9 @@ function removeSlot(i) {
 }
 
 function renderSlots() {
-  slots = pruneExpired(slots);
-  const container = document.getElementById('slot-list');
   const tz = document.getElementById('rider-tz').value;
+  slots = pruneBeforeToday(slots, tz);
+  const container = document.getElementById('slot-list');
   document.getElementById('slot-count-meta').textContent = slots.length + ' ADDED · ' + tzAbbrev(tz);
 
   if (slots.length === 0) {
@@ -1033,7 +1046,7 @@ function loadFromLocalStorage() {
       if (Array.from(sel.options).some(o => o.value === data.tz)) sel.value = data.tz;
     }
     if (Array.isArray(data.slots) && data.slots.length > 0) {
-      slots = pruneExpired(data.slots);
+      slots = pruneBeforeToday(data.slots, document.getElementById('rider-tz').value);
       return true;
     }
   } catch(e) {}
@@ -1415,7 +1428,7 @@ function saveToRoom() {
 
   if (!code) { statusEl.textContent = 'Enter a room code.'; statusEl.style.color = 'var(--danger)'; return; }
 
-  slots = pruneExpired(slots);
+  slots = pruneBeforeToday(slots, tz);
   renderSlots();
   if (!name || slots.length === 0) { statusEl.textContent = 'Add your name and at least one upcoming slot first.'; statusEl.style.color = 'var(--danger)'; return; }
 
