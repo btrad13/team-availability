@@ -418,38 +418,6 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 7px;
 }
 
-/* riders grid */
-.riders-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-.rider-card .rc-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 7px;
-}
-.rider-card .rc-head .name {
-  font-family: var(--cond); font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.1em; font-size: 11px; color: var(--muted);
-  display: flex; align-items: center; gap: 8px;
-}
-.status-pill {
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
-  padding: 2px 7px; border: 1px solid var(--line); color: var(--muted-2);
-  text-transform: uppercase;
-}
-.status-pill.ok { color: var(--green); border-color: rgba(71,255,178,0.4); }
-.status-pill.err { color: var(--danger); border-color: rgba(255,93,93,0.4); }
-.rc-x {
-  appearance: none; background: transparent; border: 1px solid var(--line);
-  color: var(--muted); font-family: var(--mono); font-size: 11px;
-  cursor: pointer; padding: 2px 8px;
-}
-.rc-x:hover { color: var(--danger); border-color: var(--danger); }
-.rc-toolbar {
-  display: flex; align-items: center; gap: 10px;
-}
-
 /* ---------- Results ---------- */
 .results { margin-top: 22px; }
 .day-group { margin-bottom: 20px; }
@@ -650,21 +618,6 @@ input[type="range"]::-moz-range-thumb {
         </div>
         <div class="room-status" id="merge-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
         <div class="room-riders" id="merge-room-riders"></div>
-      </div>
-    </div>
-
-    <div class="spacer"></div>
-    <div class="pnl">
-      <div class="sec-head">
-        <div class="lbl"><span class="dot"></span>Paste Rider Blocks</div>
-        <div class="meta" id="rider-parse-meta">0 VALID / 0 TOTAL</div>
-      </div>
-      <div class="sec-body">
-        <div class="riders-grid" id="riders-grid"></div>
-        <div class="spacer" style="height:14px"></div>
-        <button class="btn ghost" onclick="addRiderBlock()">
-          <span class="plus">+</span> Add another rider
-        </button>
       </div>
     </div>
 
@@ -1109,8 +1062,6 @@ let riderBlocks = ['', ''];
 function updateRiderParseStatus() {
   let valid = 0;
   riderBlocks.forEach(b => { if (parseBlock(b)) valid++; });
-  const total = riderBlocks.length;
-  document.getElementById('rider-parse-meta').textContent = valid + ' VALID / ' + total + ' TOTAL';
   const max = Math.max(2, valid);
   const slider = document.getElementById('threshold-slider');
   slider.max = max;
@@ -1120,55 +1071,10 @@ function updateRiderParseStatus() {
   document.getElementById('find-btn').disabled = valid === 0;
 }
 
+// Riders are loaded from a room rather than pasted; this keeps the
+// minimum-riders slider and Find Overlaps button in sync with riderBlocks.
 function renderRiderGrid() {
-  const grid = document.getElementById('riders-grid');
-  grid.innerHTML = riderBlocks.map((b, i) => {
-    const parsed = parseBlock(b);
-    const empty = !b.trim();
-    const statusCls = empty ? '' : (parsed ? ' ok' : ' err');
-    const statusText = empty ? 'EMPTY' : (parsed ? parsed.slots.length + ' SLOTS' : 'INVALID');
-    const nameText = parsed ? escHtml(parsed.name) : 'RIDER ' + (i + 1);
-    const num = String(i + 1).padStart(2, '0');
-
-    return '<div class="rider-card">' +
-      '<div class="rc-head"><div class="name">' +
-      '<span style="font-family:var(--mono);color:var(--muted-2)">' + num + '</span>' +
-      nameText + '</div>' +
-      '<div class="rc-toolbar"><span class="status-pill' + statusCls + '">' + statusText + '</span>' +
-      (riderBlocks.length > 1 ? '<button class="rc-x" onclick="removeRiderBlock(' + i + ')" title="Remove rider">&#10005;</button>' : '') +
-      '</div></div>' +
-      '<textarea spellcheck="false" placeholder="Paste availability block here" ' +
-      'oninput="onRiderInput(' + i + ', this.value)">' + escHtml(b) + '</textarea></div>';
-  }).join('');
   updateRiderParseStatus();
-}
-
-function onRiderInput(i, val) {
-  riderBlocks[i] = val;
-  updateRiderParseStatus();
-  // update status pill for this card
-  const cards = document.querySelectorAll('.rider-card');
-  if (cards[i]) {
-    const parsed = parseBlock(val);
-    const empty = !val.trim();
-    const pill = cards[i].querySelector('.status-pill');
-    const nameEl = cards[i].querySelector('.name');
-    pill.className = 'status-pill' + (empty ? '' : (parsed ? ' ok' : ' err'));
-    pill.textContent = empty ? 'EMPTY' : (parsed ? parsed.slots.length + ' SLOTS' : 'INVALID');
-    const num = String(i + 1).padStart(2, '0');
-    nameEl.innerHTML = '<span style="font-family:var(--mono);color:var(--muted-2)">' + num + '</span>' +
-      (parsed ? escHtml(parsed.name) : 'RIDER ' + (i + 1));
-  }
-}
-
-function addRiderBlock() {
-  riderBlocks.push('');
-  renderRiderGrid();
-}
-
-function removeRiderBlock(i) {
-  riderBlocks.splice(i, 1);
-  renderRiderGrid();
 }
 
 function parseBlock(text) {
@@ -1360,14 +1266,6 @@ document.getElementById('threshold-slider').addEventListener('input', function()
   document.getElementById('threshold-val').textContent = this.value + ' / ' + max;
   saveMergeToLS();
 });
-
-// Patch rider input, add/remove to save
-const _origOnRiderInput = onRiderInput;
-onRiderInput = function(i, val) { _origOnRiderInput(i, val); saveMergeToLS(); };
-const _origAddRiderBlock = addRiderBlock;
-addRiderBlock = function() { _origAddRiderBlock(); saveMergeToLS(); };
-const _origRemoveRiderBlock = removeRiderBlock;
-removeRiderBlock = function(i) { _origRemoveRiderBlock(i); saveMergeToLS(); };
 
 function resetMerge() {
   document.getElementById('display-tz').value = browserTz;
