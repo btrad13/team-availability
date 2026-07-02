@@ -639,12 +639,12 @@ input[type="range"]::-moz-range-thumb {
       <div class="controls">
         <div class="ctrl">
           <label class="cap">
-            Minimum riders &nbsp;<span class="thresh-val" id="threshold-val">2 / 2</span>
+            Minimum riders &nbsp;<span class="thresh-val" id="threshold-val">3 / 3</span>
           </label>
           <div class="slider-wrap">
-            <input type="range" id="threshold-slider" min="2" max="2" step="1" value="2">
+            <input type="range" id="threshold-slider" min="3" max="3" step="1" value="3">
           </div>
-          <div class="scale-ticks"><span>2</span><span id="scale-max">ALL (2)</span></div>
+          <div class="scale-ticks"><span>3</span><span id="scale-max">ALL (3)</span></div>
         </div>
         <div class="ctrl act">
           <button class="btn primary" id="find-btn" onclick="findOverlaps()">&#9656; Find Overlaps</button>
@@ -1075,10 +1075,10 @@ let riderBlocks = ['', ''];
 function updateRiderParseStatus() {
   let valid = 0;
   riderBlocks.forEach(b => { if (parseBlock(b)) valid++; });
-  const max = Math.max(2, valid);
+  const max = Math.max(3, valid);
   const slider = document.getElementById('threshold-slider');
   slider.max = max;
-  if (parseInt(slider.value) < 2) slider.value = 2;
+  if (parseInt(slider.value) < 3) slider.value = 3;
   document.getElementById('threshold-val').textContent = slider.value + ' / ' + max;
   document.getElementById('scale-max').textContent = 'ALL (' + max + ')';
   document.getElementById('find-btn').disabled = valid === 0;
@@ -1146,7 +1146,7 @@ function findOverlaps() {
     return;
   }
 
-  const threshold = Math.min(parseInt(document.getElementById('threshold-slider').value), riders.length);
+  const threshold = parseInt(document.getElementById('threshold-slider').value);
   const displayTz = document.getElementById('display-tz').value;
 
   let earliest = Infinity, latest = -Infinity;
@@ -1275,7 +1275,7 @@ renderRiderGrid();
 // Auto-save merge on changes
 document.getElementById('display-tz').addEventListener('change', () => { updateDisplayTzAbbrev(); saveMergeToLS(); });
 document.getElementById('threshold-slider').addEventListener('input', function() {
-  const max = Math.max(2, parseInt(this.max));
+  const max = Math.max(3, parseInt(this.max));
   document.getElementById('threshold-val').textContent = this.value + ' / ' + max;
   saveMergeToLS();
 });
@@ -1283,7 +1283,7 @@ document.getElementById('threshold-slider').addEventListener('input', function()
 function resetMerge() {
   document.getElementById('display-tz').value = browserTz;
   updateDisplayTzAbbrev();
-  document.getElementById('threshold-slider').value = 2;
+  document.getElementById('threshold-slider').value = 3;
   document.getElementById('merge-results').innerHTML = '';
   document.getElementById('merge-room-status').textContent = '';
   document.getElementById('merge-room-riders').innerHTML = '';
