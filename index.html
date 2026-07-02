@@ -576,12 +576,13 @@ input[type="range"]::-moz-range-thumb {
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select your team to share availability.</div>
+        <div class="hint" style="margin-bottom:10px">Select your team, or type a new room code.</div>
+        <datalist id="team-codes">
+          <option value="mana-surge"></option>
+          <option value="shadowstep"></option>
+        </datalist>
         <div class="room-bar" style="border:none;padding:0">
-          <select id="enter-room-code">
-            <option value="mana-surge">mana-surge</option>
-            <option value="shadowstep">shadowstep</option>
-          </select>
+          <input type="text" id="enter-room-code" list="team-codes" placeholder="e.g. mana-surge" spellcheck="false" autocomplete="off">
           <button class="btn green" id="enter-room-save" onclick="saveToRoom()" disabled>&#9656; Save to Room</button>
         </div>
         <div class="room-status" id="enter-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
@@ -614,12 +615,9 @@ input[type="range"]::-moz-range-thumb {
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select a team to load all saved rider availability automatically.</div>
+        <div class="hint" style="margin-bottom:10px">Select a team, or type a room code, to load all saved rider availability automatically.</div>
         <div class="room-bar" style="border:none;padding:0">
-          <select id="merge-room-code">
-            <option value="mana-surge">mana-surge</option>
-            <option value="shadowstep">shadowstep</option>
-          </select>
+          <input type="text" id="merge-room-code" list="team-codes" placeholder="e.g. mana-surge" spellcheck="false" autocomplete="off">
           <button class="btn green" id="merge-room-load" onclick="loadFromRoom()">&#9656; Load from Room</button>
         </div>
         <div class="room-status" id="merge-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
@@ -1314,25 +1312,24 @@ function saveTeamPref(code) {
   try { localStorage.setItem(TEAM_KEY, code); } catch(e) {}
 }
 
-// Point both dropdowns at the given team and remember it.
+// Point both inputs at the given team code and remember it.
 function selectTeam(code) {
-  const enterSel = document.getElementById('enter-room-code');
-  const mergeSel = document.getElementById('merge-room-code');
-  if (Array.from(enterSel.options).some(o => o.value === code)) {
-    enterSel.value = code;
-    mergeSel.value = code;
-    saveTeamPref(code);
-  }
+  const c = sanitizeRoomCode(code);
+  if (!c) return;
+  document.getElementById('enter-room-code').value = c;
+  document.getElementById('merge-room-code').value = c;
+  saveTeamPref(c);
 }
 
-// Restore last session's team choice (falls back to the first option).
+// Restore last session's team choice (defaults to mana-surge, no save).
 (function applyTeamPref() {
-  try {
-    const pref = localStorage.getItem(TEAM_KEY);
-    if (pref) selectTeam(pref);
-  } catch(e) {}
+  let pref = 'mana-surge';
+  try { pref = localStorage.getItem(TEAM_KEY) || pref; } catch(e) {}
+  document.getElementById('enter-room-code').value = pref;
+  document.getElementById('merge-room-code').value = pref;
 })();
 
+// Sync + remember when a team is chosen or typed (fires on blur/enter/select).
 document.getElementById('merge-room-code').addEventListener('change', function() {
   selectTeam(this.value);
 });
@@ -1341,18 +1338,24 @@ document.getElementById('merge-room-code').addEventListener('change', function()
 
 document.getElementById('enter-room-code').addEventListener('change', function() {
   selectTeam(this.value);
-  const code = sanitizeRoomCode(this.value);
+  updateSaveBtn();
+});
+
+// Update the save button live as the room code is typed.
+document.getElementById('enter-room-code').addEventListener('input', updateSaveBtn);
+
+function updateSaveBtn() {
+  const code = sanitizeRoomCode(document.getElementById('enter-room-code').value);
   const nameVal = document.getElementById('rider-name').value.trim();
   document.getElementById('enter-room-save').disabled = !code || !nameVal || slots.length === 0;
-});
+}
+updateSaveBtn();
 
 // Also update save button when name or slots change
 const origRenderOutput = renderOutput;
 renderOutput = function() {
   origRenderOutput();
-  const code = sanitizeRoomCode(document.getElementById('enter-room-code').value);
-  const nameVal = document.getElementById('rider-name').value.trim();
-  document.getElementById('enter-room-save').disabled = !code || !nameVal || slots.length === 0;
+  updateSaveBtn();
 };
 
 function saveToRoom() {
