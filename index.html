@@ -579,14 +579,14 @@ input[type="range"]::-moz-range-thumb {
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select your team, or add a new room code.</div>
+        <div class="hint" style="margin-bottom:10px">Select your team, or enter a room code.</div>
         <div class="room-bar" style="border:none;padding:0">
           <select id="enter-room-code">
             <option value="mana-surge">mana-surge</option>
             <option value="shadowstep">shadowstep</option>
             <option value="__new__">+ Other room code…</option>
           </select>
-          <input type="text" id="enter-room-custom" placeholder="new-room-code" spellcheck="false" autocomplete="off" style="display:none">
+          <input type="text" id="enter-room-custom" placeholder="room-code" spellcheck="false" autocomplete="off" style="display:none">
           <button class="btn green" id="enter-room-save" onclick="saveToRoom()" disabled>&#9656; Save to Room</button>
         </div>
         <div class="room-status" id="enter-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
@@ -619,14 +619,14 @@ input[type="range"]::-moz-range-thumb {
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select a team, or add a room code, to load all saved rider availability automatically.</div>
+        <div class="hint" style="margin-bottom:10px">Select a team, or enter a room code, to load all saved rider availability automatically.</div>
         <div class="room-bar" style="border:none;padding:0">
           <select id="merge-room-code">
             <option value="mana-surge">mana-surge</option>
             <option value="shadowstep">shadowstep</option>
             <option value="__new__">+ Other room code…</option>
           </select>
-          <input type="text" id="merge-room-custom" placeholder="new-room-code" spellcheck="false" autocomplete="off" style="display:none">
+          <input type="text" id="merge-room-custom" placeholder="room-code" spellcheck="false" autocomplete="off" style="display:none">
           <button class="btn green" id="merge-room-load" onclick="loadFromRoom()">&#9656; Load from Room</button>
         </div>
         <div class="room-status" id="merge-room-status" style="font-family:var(--mono);font-size:11px;margin-top:8px"></div>
