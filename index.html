@@ -841,16 +841,20 @@ let selectedDates = new Set();
 function renderDateChips() {
   const container = document.getElementById('date-chips');
   const tz = document.getElementById('rider-tz').value;
-  const now = new Date();
+  const today = dayKey(new Date(), tz);
+  const [year, month, day] = today.split('-').map(Number);
   const chips = [];
 
   for (let d = 0; d < 14; d++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + d);
-    const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+    // Advance calendar dates in UTC so the stored date is independent of the
+    // browser's timezone. Use local noon to format it safely in the rider's
+    // timezone, including around daylight-saving transitions.
+    const calendarDate = new Date(Date.UTC(year, month - 1, day + d));
+    const dateStr = calendarDate.toISOString().slice(0, 10); // YYYY-MM-DD
+    const riderNoon = localToUtc(dateStr + 'T12:00', tz);
 
-    // Get day-of-week and short date in rider's tz
-    const parts = fmtParts(date, tz);
+    // Get day-of-week and short date for the same calendar date in the rider's tz.
+    const parts = fmtParts(riderNoon, tz);
     const dow = parts.weekday.slice(0, 3).toUpperCase();
     const label = parts.month + ' ' + parts.day;
     const sel = selectedDates.has(dateStr) ? ' selected' : '';
@@ -1059,12 +1063,14 @@ renderOutput();
 
 function resetEnter() {
   document.getElementById('rider-name').value = '';
-  document.getElementById('slot-start').value = '';
-  document.getElementById('slot-end').value = '';
+  document.getElementById('slot-time-start').value = '';
+  document.getElementById('slot-time-end').value = '';
   document.getElementById('slot-error').innerHTML = '';
   document.getElementById('rider-tz').value = browserTz;
   updateTzMeta();
+  selectedDates.clear();
   slots = [];
+  renderDateChips();
   renderSlots();
   renderOutput();
   try { localStorage.removeItem('ta_enter'); } catch(e) {}
