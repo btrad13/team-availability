@@ -1157,21 +1157,27 @@ function findOverlaps() {
   const threshold = parseInt(document.getElementById('threshold-slider').value);
   const displayTz = document.getElementById('display-tz').value;
 
-  let earliest = Infinity, latest = -Infinity;
+  const boundaries = new Set();
   for (const r of riders) {
     for (const sl of r.slots) {
       const s = new Date(sl.s).getTime(), e = new Date(sl.e).getTime();
-      if (s < earliest) earliest = s;
-      if (e > latest) latest = e;
+      boundaries.add(s);
+      boundaries.add(e);
     }
   }
 
-  const STEP = 15 * 60 * 1000;
+  // Availability can only change when a rider's slot starts or ends. Walking
+  // those exact boundaries keeps an off-grid time (for example, 08:57) local
+  // to the overlap it actually affects instead of shifting every result onto
+  // a global :12/:27/:42/:57 grid.
+  const times = Array.from(boundaries).sort((a, b) => a - b);
   const windows = [];
   let current = null;
 
-  for (let t = earliest; t < latest; t += STEP) {
-    const tEnd = t + STEP;
+  for (let i = 0; i < times.length - 1; i++) {
+    const t = times[i];
+    const tEnd = times[i + 1];
+    if (tEnd <= t) continue;
     const available = [];
     for (const r of riders) {
       for (const sl of r.slots) {
