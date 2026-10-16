@@ -231,6 +231,11 @@ select {
   padding-right: 30px;
   cursor: pointer;
 }
+select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: .75;
+}
 input[type="datetime-local"] { font-family: var(--mono); font-size: 13px; }
 input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(.45); cursor: pointer; }
 textarea {
@@ -579,7 +584,7 @@ input[type="range"]::-moz-range-thumb {
         <div class="meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select your team, or enter a room code.</div>
+        <div class="hint" id="enter-room-hint" style="margin-bottom:10px">Select your team, or enter a room code.</div>
         <div class="room-bar" style="border:none;padding:0">
           <select id="enter-room-code">
             <option value="mana-surge">mana-surge</option>
@@ -618,10 +623,10 @@ input[type="range"]::-moz-range-thumb {
     <div class="pnl">
       <div class="sec-head">
         <div class="lbl"><span class="dot" style="background:var(--green)"></span>Load from Room</div>
-        <div class="meta">OPTIONAL</div>
+        <div class="meta" id="merge-room-meta">OPTIONAL</div>
       </div>
       <div class="sec-body">
-        <div class="hint" style="margin-bottom:10px">Select a team, or enter a room code, to load all saved rider availability automatically.</div>
+        <div class="hint" id="merge-room-hint" style="margin-bottom:10px">Select a team, or enter a room code, to load all saved rider availability automatically.</div>
         <div class="room-bar" style="border:none;padding:0">
           <select id="merge-room-code">
             <option value="mana-surge">mana-surge</option>
@@ -664,6 +669,27 @@ input[type="range"]::-moz-range-thumb {
 </div>
 
 <script>
+const TEAM_CODES = Object.freeze([
+  'mana-surge',
+  'shadowstep',
+  'chain-lightning',
+  'berserker-rage'
+]);
+
+// Team entry pages briefly route through ?team=<code> so this shared page can
+// initialise the correct room. Restore the clean, shareable URL immediately.
+const requestedTeam = new URLSearchParams(location.search).get('team');
+const LOCKED_TEAM = TEAM_CODES.includes(requestedTeam) ? requestedTeam : null;
+let roomDatabaseReady = false;
+
+if (LOCKED_TEAM) {
+  const params = new URLSearchParams(location.search);
+  params.delete('team');
+  const basePath = location.pathname.replace(/(?:index\.html)?$/, '');
+  const query = params.toString();
+  history.replaceState(null, '', basePath + LOCKED_TEAM + '/' + (query ? '?' + query : '') + location.hash);
+}
+
 const TIMEZONES = [
   'Pacific/Honolulu','America/Los_Angeles','America/Vancouver','America/Denver',
   'America/Chicago','America/New_York','America/Toronto','America/Sao_Paulo',
@@ -746,6 +772,7 @@ updateDisplayTzAbbrev();
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.mode').forEach(m => m.classList.toggle('active', m.id === 'mode-' + name));
+  if (name === 'merge' && LOCKED_TEAM && roomDatabaseReady) loadFromRoom();
 }
 
 // --- ENTER MODE ---
@@ -1259,12 +1286,16 @@ function saveMergeToLS() {
     threshold: document.getElementById('threshold-slider').value,
     blocks: riderBlocks
   };
-  try { localStorage.setItem('ta_merge', JSON.stringify(data)); } catch(e) {}
+  try { localStorage.setItem(mergeStorageKey(), JSON.stringify(data)); } catch(e) {}
+}
+
+function mergeStorageKey() {
+  return LOCKED_TEAM ? 'ta_merge_' + LOCKED_TEAM : 'ta_merge';
 }
 
 function loadMergeFromLS() {
   try {
-    const raw = localStorage.getItem('ta_merge');
+    const raw = localStorage.getItem(mergeStorageKey());
     if (!raw) return false;
     const data = JSON.parse(raw);
     if (data.tz) {
@@ -1305,7 +1336,8 @@ function resetMerge() {
   document.getElementById('merge-room-riders').innerHTML = '';
   riderBlocks = ['', ''];
   renderRiderGrid();
-  try { localStorage.removeItem('ta_merge'); } catch(e) {}
+  try { localStorage.removeItem(mergeStorageKey()); } catch(e) {}
+  if (LOCKED_TEAM && roomDatabaseReady) loadFromRoom();
 }
 
 // ===========================================
@@ -1340,6 +1372,7 @@ function saveTeamPref(code) {
 // Read the effective room code for a side ('enter' or 'merge'): either the
 // selected preset, or the custom text when "+ New room code…" is chosen.
 function getRoomCode(which) {
+  if (LOCKED_TEAM) return LOCKED_TEAM;
   const sel = document.getElementById(which + '-room-code');
   if (sel.value === '__new__') {
     return sanitizeRoomCode(document.getElementById(which + '-room-custom').value);
@@ -1387,8 +1420,23 @@ function onTeamSelectChange(which) {
   }
 }
 
-// Restore last session's team choice (defaults to mana-surge, no save).
+// A team URL always wins over the browser's remembered choice. On the main
+// page, retain the existing preference behaviour unchanged.
 (function applyTeamPref() {
+  if (LOCKED_TEAM) {
+    setRoomCode('enter', LOCKED_TEAM);
+    setRoomCode('merge', LOCKED_TEAM);
+    document.getElementById('enter-room-code').disabled = true;
+    document.getElementById('merge-room-code').disabled = true;
+    document.getElementById('enter-room-custom').style.display = 'none';
+    document.getElementById('merge-room-custom').style.display = 'none';
+    document.getElementById('merge-room-load').hidden = true;
+    document.getElementById('enter-room-hint').textContent = 'Availability entered here will be saved to this team.';
+    document.getElementById('merge-room-hint').textContent = 'Saved rider availability for this team loads automatically.';
+    document.getElementById('merge-room-meta').textContent = 'AUTOMATIC';
+    return;
+  }
+
   let pref = 'mana-surge';
   try { pref = localStorage.getItem(TEAM_KEY) || pref; } catch(e) {}
   setRoomCode('enter', pref);
@@ -1481,6 +1529,11 @@ function loadFromRoom() {
       if (!data) {
         statusEl.textContent = 'No riders found in room "' + code + '".';
         statusEl.style.color = 'var(--danger)';
+        if (LOCKED_TEAM) {
+          riderBlocks = ['', ''];
+          renderRiderGrid();
+          saveMergeToLS();
+        }
         return;
       }
 
@@ -1549,6 +1602,11 @@ function loadFromRoom() {
       statusEl.textContent = 'Error: ' + err.message;
       statusEl.style.color = 'var(--danger)';
     });
+}
+
+roomDatabaseReady = true;
+if (LOCKED_TEAM && document.getElementById('mode-merge').classList.contains('active')) {
+  loadFromRoom();
 }
 </script>
 </body>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadowstep · Team Availability</title>
+</head>
+<body>
+<p>Opening Shadowstep team availability…</p>
+<script>
+const destination = new URL('../', location.href);
+destination.searchParams.set('team', 'shadowstep');
+destination.hash = location.hash;
+location.replace(destination.href);
+</script>
+</body>
+</html>
