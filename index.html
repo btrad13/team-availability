@@ -591,6 +591,7 @@ input[type="range"]::-moz-range-thumb {
             <option value="shadowstep">shadowstep</option>
             <option value="chain-lightning">chain-lightning</option>
             <option value="berserker-rage">berserker-rage</option>
+            <option value="intrateamrace">intrateamrace</option>
             <option value="__new__">+ Other room code…</option>
           </select>
           <input type="text" id="enter-room-custom" placeholder="room-code" spellcheck="false" autocomplete="off" style="display:none">
@@ -633,6 +634,7 @@ input[type="range"]::-moz-range-thumb {
             <option value="shadowstep">shadowstep</option>
             <option value="chain-lightning">chain-lightning</option>
             <option value="berserker-rage">berserker-rage</option>
+            <option value="intrateamrace">intrateamrace</option>
             <option value="__new__">+ Other room code…</option>
           </select>
           <input type="text" id="merge-room-custom" placeholder="room-code" spellcheck="false" autocomplete="off" style="display:none">
@@ -673,13 +675,15 @@ const TEAM_CODES = Object.freeze([
   'mana-surge',
   'shadowstep',
   'chain-lightning',
-  'berserker-rage'
+  'berserker-rage',
+  'intrateamrace'
 ]);
 
 // Team entry pages briefly route through ?team=<code> so this shared page can
 // initialise the correct room. Restore the clean, shareable URL immediately.
 const requestedTeam = new URLSearchParams(location.search).get('team');
 const LOCKED_TEAM = TEAM_CODES.includes(requestedTeam) ? requestedTeam : null;
+const DATE_SELECTION_DAYS = LOCKED_TEAM === 'intrateamrace' ? 28 : 14;
 let roomDatabaseReady = false;
 
 if (LOCKED_TEAM) {
@@ -874,7 +878,7 @@ function renderDateChips() {
   const [year, month, day] = today.split('-').map(Number);
   const chips = [];
 
-  for (let d = 0; d < 14; d++) {
+  for (let d = 0; d < DATE_SELECTION_DAYS; d++) {
     // Advance calendar dates in UTC so the stored date is independent of the
     // browser's timezone. Use local noon to format it safely in the rider's
     // timezone, including around daylight-saving transitions.
